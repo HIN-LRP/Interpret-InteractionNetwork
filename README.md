@@ -1,1 +1,1 @@
-# Interprete-InteractionNetwork
+# Interpret-InteractionNetwork
