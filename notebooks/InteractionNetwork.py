@@ -62,5 +62,5 @@ class InteractionNetwork(torch.nn.Module):
         
         x = self.bn(x)
         x, edge_attr, u = self.interactionnetwork(x, edge_index, None, None, batch)
-        return u,edge_attr
+        return u
     
