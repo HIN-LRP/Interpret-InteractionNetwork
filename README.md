@@ -12,16 +12,14 @@ While Graph Interaction Networks achieve exceptional results in Higgs particle i
 * `config`: 
 
 * `notebooks`:
-    * `EDA.ipynb`: notebook that contains the eploratory data analysis of this project
+    * `LRP.ipynb`: notebook that contains a demonstration of the content in `IN_LRP.py`
 * `references`: contains links to the paper and libraries referenced in this paper
 * `src`:
-
+    * `util.py`: contains helper functions
+    * `plot.py`: methods for creating the visualizations
+    * `IN_LRP.py`: methods for computing relevance score of input using uniform LRP-epsilon rule
 * `run.py`: Entry point for running different targets of this project
-* `runTest.py`: Not intended for direct use, contains script for running the project on Dev data
 * `test`: directory for storing Dev data
-    * `testdata`
-        * `train`: contains Dev data for training
-        * `test`: contains Dev data for testing
 
 <hr>
 
@@ -36,7 +34,9 @@ To use `run.py`, a list of supported arguments are provided below
 |arguments|purpose|
 |-|-|
 |`test`| build all targets of this project on Dev data|
-|`all`|similar to `test`, but builds with actual data * not recommended as this may take a very long time to finish running|
+|`node_feat_rel`|creates the visualization of node feature relevance score heatmap|
+|`edge_rel_3d`|creates the visualization of edge importance of the jet in 3D|
+|`all` (or leaving blank)|creates all of the plots mentioned above|
 ```
 python run.py <arguments>
 ```
