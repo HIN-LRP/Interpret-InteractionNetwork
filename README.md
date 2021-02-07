@@ -25,7 +25,7 @@ While Graph Interaction Networks achieve exceptional results in Higgs particle i
 
 ## Build Environment
 * [Docker image](https://hub.docker.com/repository/docker/shiro0x19a/higgs-interaction-network) used for this project
-
+* Currently, at least one GPU unit is required for this project. 
 <hr>
 
 
