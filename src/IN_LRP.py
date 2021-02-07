@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import Sequential as Seq,Linear,ReLU,BatchNorm1d
 from torch_scatter import scatter_mean
 from torch_geometric.utils import to_networkx
+import os.path as osp
 
 import numpy as np
 import matplotlib
@@ -34,7 +35,7 @@ def load_data(def_fn="definitions.yml",
     ntracks = definitions['ntracks']
 
     file_names=fn
-    graph_dataset = GraphDataset('data', features, labels, spectators, n_events=10000, n_events_merge=1000, 
+    graph_dataset = GraphDataset(osp.dirname(fn[0]), features, labels, spectators, n_events=10000, n_events_merge=1000, 
                              file_names=file_names)
 
     return graph_dataset

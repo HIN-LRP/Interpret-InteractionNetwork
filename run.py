@@ -1,6 +1,7 @@
 from src import *
 import yaml
 import sys
+from os import system
 
 if __name__=="__main__":
     # get the targets
@@ -13,7 +14,7 @@ if __name__=="__main__":
     features = definitions['features']
 
     if "test" in targets:
-        dataset=load_data("data/definitions.yml",fn=["test/test.root"])
+        dataset=load_data("data/definitions.yml",fn=["./test/data/test.root"])
     else:
         dataset=load_data("data/definitions.yml")
 
