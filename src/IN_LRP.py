@@ -8,13 +8,13 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
-from InteractionNetwork import InteractionNetwork
+from .InteractionNetwork import InteractionNetwork
 
-from util import copy_layer,copy_tensor,LRP
-from plot import plot_node_feat_heatmap,plot_network_3D
+from .util import *
+from .plot import plot_node_feat_heatmap,plot_network_3D
 
 import yaml
-from GraphDataset import GraphDataset
+from .GraphDataset import GraphDataset
 
 def load_data(def_fn="definitions.yml",
               fn=["/teams/DSC180A_FA20_A00/b06particlephysics/train/ntuple_merged_10.root"]):
@@ -40,6 +40,9 @@ def load_data(def_fn="definitions.yml",
     return graph_dataset
 
 def load_model(fn):
+    """
+    @param fn: name of the model state dict to be loaded
+    """
     model=InteractionNetwork()
     model.load_state_dict(torch.load(fn))
 
@@ -72,7 +75,7 @@ def get_layers(model)->dict:
     
     return layers
 
-def get_input(g):
+def _get_input(g):
     """
     given a graph g, prepare the input matrix for the IN model layers, along
     with required meta information
@@ -85,28 +88,25 @@ def get_input(g):
     x=nn.BatchNorm1d(48)(g.x)
     x=copy_tensor(torch.cat([x[row],x[col]],1))
 
-    return x,g.edge_index
+    return x
 
-def get_activations(layers,x,edge_index):
+def get_activations(layers,g):
     """
     @param layers: the entire collection of layers
     @param x: preprocessed input data
     """
+    # process input
+    x=_get_input(g)
+    row,col=g.edge_index
+    n_tracks=g.x.shape[0]
+
     # initialize
     activations={}
     activations["a-1"]=x
     activations["a0"]=layers["L0"].forward(x)
 
     # create masking matrices for normalization by src/dest nodes of the edges
-    row,col=edge_index
-    M_col=torch.zeros(col.shape[0],n_tracks,dtype=torch.float32)
-    M_row=torch.zeros(row.shape[0],n_tracks,dtype=torch.float32)
-    for i,j in enumerate(col):
-        M_col[i,j]=1
-    for i,j in enumerate(row):
-        M_row[i,j]=1
-    M_col=M_col.T
-    M_row=M_row.T
+    M_row,M_col=make_mask(row,n_tracks),make_mask(col,n_tracks)
 
 
     # todo: change the activation and layer extraction to forward hooks
@@ -127,52 +127,58 @@ def get_activations(layers,x,edge_index):
         
         activations[f"a{i}"]=layers[f"L{i}"].forward(a)
 
-    activations["output"]=copy_tensor(activations["a{i}"])
+    activations["output"]=copy_tensor(activations[f"a{i}"])
 
     return activations
 
-def get_relevances(layers,activations):
+def get_relevances(layers,activations,g):
     R={}
-    n_layers=len(activations.keys())
+    n_layers=len(layers.keys())
 
     # mask the output to only look at the contribution to the signal class
-    R[f"R{n_layers+1}"]=copy_tensor(activations["output"]@torch.tensor([[0,0],[0,1]],dtype=torch.float32))
+    R[f"R{n_layers}"]=copy_tensor(activations["output"]@torch.tensor([[0,0],[0,1]],dtype=torch.float32))
 
+    # extract meta information
+    row,col=g.edge_index
+    n_tracks=g.x.shape[0]
+    M_row,M_col=make_mask(row,n_tracks),make_mask(col,n_tracks)
 
     # todo: update the special case rules to be imported from file
     # compute relevance scores
-    for i in range(len(layers.keys())-1,-1,-1):
+    for i in range(n_layers-1,-1,-1):
         a=activations[f"a{i-1}"]
         r=R[f"R{i+1}"]
         l=layers[f"L{i}"]
   
-    if i==2:
-        # a1->a1'
-        a=copy_tensor(torch.cat([g.x[row],a],1))
-        r=LRP(a,l,r)
-        
-        # r_x[row],r2'
-        r_src,r=r[:,:48],r[:,48:] 
-        R[f"R{i}_src"]=r_src
+        if i==2:
+            # a1->a1'
+            a=copy_tensor(torch.cat([g.x[row],a],1))
+            r=LRP(a,l,r)
+            
+            # r_x[row],r2'
+            r_src,r=r[:,:48],r[:,48:] 
+            R[f"R{i}_src"]=r_src
 
-    elif i==4:
-        # a3->a3'
-        a=copy_tensor(torch.cat([g.x,M_col@a/n_tracks],1))
-        r=LRP(a,l,r)
-        
-        r_x,r=r[:,:48],r[:,48:]
-        R[f"R{i}_x"]=r_x
-        r=r[col]/n_tracks
-    elif i==6:
-        # a5->a5'
-        a=copy_tensor((torch.ones(1,n_tracks)@a/n_tracks))
-        r=LRP(a,l,r)
-        
-    else:
-        a=copy_tensor(a)
-        r=LRP(a,l,r)
-        
-    R[f"R{i}"]=r
+        elif i==4:
+            # a3->a3'
+            a=copy_tensor(torch.cat([g.x,M_col@a/n_tracks],1))
+            r=LRP(a,l,r)
+            
+            r_x,r=r[:,:48],r[:,48:]
+            R[f"R{i}_x"]=r_x
+            r=r[col]/n_tracks
+        elif i==6:
+            # a5->a5'
+            a=copy_tensor((torch.ones(1,n_tracks)@a/n_tracks))
+            r=LRP(a,l,r)
+            
+        else:
+            a=copy_tensor(a)
+            r=LRP(a,l,r)
+            
+        R[f"R{i}"]=r
+
+    return R
 
 
 def pipeline(graph,
@@ -181,9 +187,13 @@ def pipeline(graph,
     """
     a pipeline connecting all the steps for making relevant plots
     """
-    # prepare dataset, use only a subset of it for visualization
+    # prepare dataset
     graph.batch=torch.tensor(np.zeros(graph.x.shape[0]).astype("int64"))
-    x,edge_index=get_input(graph)
+
+    # create masking matrices for normalization by src/dest nodes of the edges
+    n_tracks=graph.x.shape[0]
+    row,col=graph.edge_index
+    M_row,M_col=make_mask(row,n_tracks),make_mask(col,n_tracks)
 
     # load model
     model=load_model(model_fn)
@@ -192,8 +202,8 @@ def pipeline(graph,
     layers=get_layers(model)
 
     # obtain activation of each layer and compute relevance scores
-    activations=get_activations(layers,x,edge_index)
-    R=get_relevances(layers,activations)
+    activations=get_activations(layers,graph)
+    R=get_relevances(layers,activations,graph)
 
     # merge the relevance scores from multiple paths
     r=(((M_row@R["R0"][:,:len(features)]))+(M_row@R["R2_src"])+R["R4_x"])
@@ -203,12 +213,6 @@ def pipeline(graph,
 
     
     # process relevance scores for making 3D jet plot
-    # create masking matrices for normalization by src/dest nodes of the edges
-    M_row=torch.zeros(row.shape[0],n_tracks,dtype=torch.float32)
-    for i,j in enumerate(row):
-        M_row[i,j]=1
-    M_row=M_row.T
-
     node_size=torch.norm(M_row@R["R0"][:,:48],dim=1)
     edge_alpha=torch.norm(R["R0"],dim=1)
     alpha=(edge_alpha-edge_alpha.min())/edge_alpha.max() # normalize so edge alpha varies between 0-1
@@ -228,12 +232,14 @@ def pipeline(graph,
     G = to_networkx(graph, edge_attrs=['edge_alpha'],node_attrs=["pos","node_size"])
 
     # plot edge relevance 3D
-    network_plot_3D(G,45,graph.y.detach(),fn=nw_rel_fn)
+    plot_network_3D(G,45,graph.y.detach(),fn=nw_rel_fn,save=True)
+
+    # todo: plot edge activation 3D
     
 
 if __name__=="__main__":
     # get feature names for plotting
-    with open("definitions.yml") as file:
+    with open("../data/definitions.yml") as file:
         definitions = yaml.load(file, Loader=yaml.FullLoader)
         
     features = definitions['features']

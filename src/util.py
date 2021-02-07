@@ -34,3 +34,11 @@ def LRP(a,l,r,epsilon=1e-9):
     
     return a*c
 
+def make_mask(idx,n_tracks):
+
+    M=torch.zeros(idx.shape[0],n_tracks,dtype=torch.float32)
+    for i,j in enumerate(idx):
+        M[i,j]=1
+    M=M.T
+
+    return M

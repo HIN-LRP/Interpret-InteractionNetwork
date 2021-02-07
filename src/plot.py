@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -46,6 +47,8 @@ def plot_network_3D(G, angle,label,fn="edge_rel.png",save=True,display=False):
     @param fn: file name to save the figure if `save` is True
     @param save: whether to save the plot to file
     """
+    normalizer=colors.Normalize()
+
     # Get node positions
     pos = nx.get_node_attributes(G, 'pos')
     node_size=nx.get_node_attributes(G,"node_size")
@@ -66,10 +69,12 @@ def plot_network_3D(G, angle,label,fn="edge_rel.png",save=True,display=False):
             zi = value[2]
             
             # Scatter plot
-            ax.scatter(xi, yi, zi, c='k',s=25*node_size[key], edgecolors='orange', alpha=0.5)
+            ax.scatter(xi, yi, zi, c='k',s=node_size[key], edgecolors='orange', alpha=0.5)
         
         # Loop on the list of edges to get the x,y,z, coordinates of the connected nodes
         edge_alpha=list(nx.get_edge_attributes(G, 'edge_alpha').values())
+        edge_alpha=normalizer(edge_alpha)
+
         for i,j in enumerate(G.edges()):
             x = np.array((pos[j[0]][0], pos[j[1]][0]))
             y = np.array((pos[j[0]][1], pos[j[1]][1]))
