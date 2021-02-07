@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-def copy(layer):
+def copy_layer(layer):
     """
     create a deep copy of provided layer
     """
@@ -11,32 +11,26 @@ def copy(layer):
     return layer_cp
 
 
-def rho(layer,rule="0"):
+def copy_tensor(tensor,dtype=torch.float32):
     """
-    create a deep copy of a linear layer
+    create a deep copy of the provided tensor,
+    outputs the copy with specified dtype 
     """
-    W=layer.weight.detach()
-    b=layer.bias.detach()
     
-    return lambda a: a@W.T+b
+    return torch.tensor(tensor.clone().detach().numpy(),
+                        requires_grad=True,
+                        dtype=dtype)
 
-
-def lrp(layer,a,R,epsilon=1e-9,relu=False):
-    """
-    LRP-epsilon, with epsilon set to 1e-9 by default
-    """
-    a=torch.tensor(a,requires_grad=True)
+def LRP(a,l,r,epsilon=1e-9):
+    a=torch.tensor(a.clone().detach().numpy(),
+                      requires_grad=True,dtype=torch.float32)
     a.retain_grad()
     
-    z=epsilon+rho(layer)(a)
-    s=R/(z+1e-9)
-    (z@s.data).sum().backward()
+    z=l.forward(a)
+    s=r/(z+epsilon)
+    
+    (z*s.data).sum().backward()
     c=a.grad
     
-    if relu:
-        R=nn.ReLU()(z.sum())*c
-    else:
-        R=a*c
-    
-    return R
+    return a*c
 
