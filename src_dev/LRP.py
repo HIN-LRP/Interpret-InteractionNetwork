@@ -99,36 +99,6 @@ class LRP:
                 R=(r_x_src+r_x_dest+r_x+scatter_mean(r_x_row,row,dim=0,dim_size=n_tracks)+1e-10)
             else:
                 continue
-            # to_split=self.special_layer_config[name]["split"]
-            # if len(to_split)==1: # do not split
-            #     continue
-            # else:
-            #     for r_n in to_split.keys():
-            #         start,stop=to_split[r_n]
-            #         if r_n==name:
-            #             temp=R[:,start:stop]
-            #         else:
-            #             to_explain["R"][r_n]=R[:,start:stop]
-                
-            #     R=temp
-
-
-            # to_scatter=self.special_layer_config[name]["scatter"]
-            # if to_scatter<0:     # do not scatter
-            #     continue
-            # elif to_scatter==2:  # scatter by edges/tracks
-            #     n_tracks=to_explain["inputs"]["x"].shape[0]
-            #     R=R.repeat(n_tracks,1)/n_tracks
-            # else:                # scatter by row/src or col/dest
-            #     R=R[to_explain["inputs"]["edge_index"][to_scatter]]
-            #     n_tracks=to_explain["inputs"]["x"].shape[0]
-            #     R/=n_tracks
-
-            # to_scatter_mean=self.special_layer_config[name]["scatter_mean"]
-            # if len(to_scatter_mean)==0: # do not aggregate
-            #     continue
-            # else:
-
 
 
         # backward pass with specified LRP rule

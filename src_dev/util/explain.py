@@ -10,6 +10,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 if __name__=="__main__":
+    # todo: move this to data_io.py
     with open('../data/definitions.yml') as file:
     # The FullLoader parameter handles the conversion from YAML
     # scalar values to Python the dictionary format
