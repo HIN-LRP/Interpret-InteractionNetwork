@@ -24,7 +24,7 @@ class LRP:
         a=copy_tensor(input)
         a.retain_grad()
         z=layer.forward(a)
-        s=R/(z+EPSILON*torch.sign(z))
+        s=R/(z+LRP.EPSILON*torch.sign(z))
 
         (z*s.data).sum().backward()
 
@@ -43,10 +43,9 @@ class LRP:
             d=n+b*torch.sign(n)*torch.sign(b)
             
             return n/d
-        
-        return f
 
-        frac=f(a)
+
+        frac=f(input)
         return frac*R
 
     
@@ -58,19 +57,23 @@ class LRP:
 
         # preparing variables required for computing LRP
         layer=self.model.get_layer(index=index,name=name)
-        rule=self.model.get_rule(index=index,name=name)
+        rule=self.model.get_rule(index=index,layer_name=name)
         if rule=="z":
-            rule=z_rule
+            rule=LRP.z_rule
         elif rule=="eps":
-            rule=eps_rule
+            rule=LRP.eps_rule
         else:             # default to use epsilon rule if provided rule name not supported
-            rule=eps_rule
+            rule=LRP.eps_rule
 
+        if name is None:
+            name=self.model.index2name(index)
+        if index is None:
+            index=self.model.name2index(name)
 
         input=to_explain['A'][name]
         
         R=to_explain["R"][index+1] 
-        if name in self.special_layers:
+        if name in self.model.special_layers:
             n_tracks=to_explain["inputs"]["x"].shape[0]
             row,col=to_explain["inputs"]["edge_index"]
 
@@ -98,7 +101,7 @@ class LRP:
 
                 R=(r_x_src+r_x_dest+r_x+scatter_mean(r_x_row,row,dim=0,dim_size=n_tracks)+1e-10)
             else:
-                continue
+                pass
 
 
         # backward pass with specified LRP rule
@@ -110,20 +113,21 @@ class LRP:
 
     def explain(self,
                 to_explain:dict,
-                save=True:bool,
-                save_to="./relevance.pt":str,
+                save:bool=True,
+                save_to:str="./relevance.pt",
                 # input:dict,
-                # signal=torch.tensor([0,1],dtype=torch.float32),
-                return_relevance=False:bool):
+                signal=torch.tensor([0,1],dtype=torch.float32),
+                return_relevance:bool=False):
         inputs=to_explain["inputs"]
+
 
         self.model.model.eval()
         u=self.model.model.forward(**inputs)
 
-        start_index=len(self.model.n_layers)
+        start_index=self.model.n_layers
         to_explain['R'][start_index]=copy_tensor(u*signal)
 
-        for index in range(start_index-1,1-1,-1):
+        for index in range(start_index-1,0-1,-1):
             self.explain_single_layer(to_explain,index)
 
         R_node=to_explain["R"][0]

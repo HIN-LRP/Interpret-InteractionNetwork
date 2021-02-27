@@ -17,6 +17,4 @@ def copy_tensor(tensor,dtype=torch.float32):
     outputs the copy with specified dtype 
     """
     
-    return torch.tensor(tensor.clone().detach().numpy(),
-                        requires_grad=True,
-                        dtype=dtype)
+    return tensor.clone().detach().requires_grad_(True)

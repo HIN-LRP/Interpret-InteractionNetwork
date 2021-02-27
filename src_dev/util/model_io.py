@@ -4,7 +4,7 @@ from torch.nn import Sequential as Seq,Linear,ReLU,BatchNorm1d
 from torch_scatter import scatter_mean
 import numpy as np
 import json
-from .util import copy_tensor,copy_layer
+from . import copy_tensor,copy_layer
 
 
 class model_io:
@@ -18,7 +18,8 @@ class model_io:
     def __init__(self,model,
                 model_state_dict,
                 activation_dest,):
-        self.model=model.load_state_dict(model_state_dict)
+        self.model=model
+        self.model.load_state_dict(model_state_dict)
         self.dest=activation_dest
 
         # declare variables
@@ -38,7 +39,7 @@ class model_io:
         
         # register special layers
         self.special_layers=list()
-        for key in SPECIAL_LAYERS:
+        for key in model_io.SPECIAL_LAYERS:
             full_key=[layer_name for layer_name in self.L.keys() if key in layer_name][0]
             
             self.special_layers.append(full_key)
@@ -57,7 +58,7 @@ class model_io:
                 rule="eps"
             self._rules[layer_name]=rule
 
-    def get_rules(self,index=None,layer_name=None):
+    def get_rule(self,index=None,layer_name=None):
         assert (not index is None) or (not layer_name is None), "at least one of (index,name) must be provided" 
         if layer_name is None:
             layer_name=self.index2name(index)
@@ -85,8 +86,8 @@ class model_io:
         
         if len(l)==0:
             self.L[name]=copy_layer(model)
-            hook=_make_forward_hook(name)
-            hook_handles.append(model.register_forward_hook(hook))
+            hook=self._make_forward_hook(name)
+            self._hook_handles.append(model.register_forward_hook(hook))
         else:
             l=list(model.named_children())
             for i in l:
