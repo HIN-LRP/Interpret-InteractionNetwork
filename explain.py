@@ -5,6 +5,8 @@ from src_dev.util import model_io,load_from,write_to
 import yaml
 from src_dev.model.GraphDataset import GraphDataset
 from src_dev.model.InteractionNetwork import InteractionNetwork
+from tqdm import tqdm
+from torch_geometric.data import DataLoader
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -32,15 +34,45 @@ if __name__=="__main__":
     graph_dataset = GraphDataset('./data', features, labels, spectators, n_events=10000, n_events_merge=1000, 
                                 file_names=file_names)
     
-    b=graph_dataset[0]
-    g=b[1]
-    g.batch=torch.zeros(g.x.shape[0],dtype=torch.int64)
+    batch=graph_dataset[0]
+    batch_size=1
+    batch_loader=DataLoader(batch,batch_size = batch_size)
+    # g=b[1]
+    # g.batch=torch.zeros(g.x.shape[0],dtype=torch.int64)
 
-    to_explain={"A":dict(),"inputs":dict(x=g.x,edge_index=g.edge_index,batch=g.batch),"R":dict()}
-    
-    model=InteractionNetwork()
-    state_dict=torch.load("./data/model/IN_best_dec10.pth",map_location=torch.device('cpu'))
-    model=model_io(model,state_dict,to_explain["A"])
+    model=InteractionNetwork().to(device)
+    state_dict=torch.load("./data/model/IN_best_dec10.pth",map_location=device)
+    model=model_io(model,state_dict,dict())
 
+    t=tqdm(enumerate(batch_loader),total=len(batch)//batch_size)
     explainer=LRP(model)
-    explainer.explain(to_explain,save=True,save_to="./data/file_0_jet_0_relevance.pt")
+    results=[]
+    # cnt=100
+    for i,data in t:
+        data=data.to(device)
+        to_explain={"A":dict(),"inputs":dict(x=data.x,
+                                             edge_index=data.edge_index,
+                                             batch=data.batch),"y":data.y,"R":dict()}
+        
+        model.set_dest(to_explain["A"])
+        
+        results.append(explainer.explain(to_explain,save=False,return_result=True))
+        
+    save_to="./data/file_0_relevance.pt"
+    torch.save(results,save_to)
+
+        # if cnt==0:
+        #     break
+        # cnt-=1
+        
+        # break
+
+    # to_explain={"A":dict(),"inputs":dict(x=g.x,edge_index=g.edge_index,batch=g.batch),"R":dict()}
+    
+    # model=InteractionNetwork().to(device)
+    # state_dict=torch.load("./data/model/IN_best_dec10.pth",map_location=torch.device('cpu'))
+    # state_dict=torch.load("./data/model/IN_best_dec10.pth",map_location=device)
+    # model=model_io(model,state_dict,to_explain["A"])
+
+    # explainer=LRP(model)
+    # explainer.explain(to_explain,save=True,save_to="./data/file_0_jet_0_relevance.pt")

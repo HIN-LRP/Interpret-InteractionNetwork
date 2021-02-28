@@ -6,6 +6,7 @@ import numpy as np
 import json
 from .util import copy_tensor,model_io
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class LRP:
     EPSILON=1e-9
@@ -24,6 +25,9 @@ class LRP:
         a=copy_tensor(input)
         a.retain_grad()
         z=layer.forward(a)
+
+        # print(R.shape,z.shape)
+
         s=R/(z+LRP.EPSILON*torch.sign(z))
 
         (z*s.data).sum().backward()
@@ -105,6 +109,7 @@ class LRP:
 
 
         # backward pass with specified LRP rule
+        # print(name)
         R=rule(layer,input,R)
 
         # store result
@@ -115,14 +120,17 @@ class LRP:
                 to_explain:dict,
                 save:bool=True,
                 save_to:str="./relevance.pt",
-                # input:dict,
-                signal=torch.tensor([0,1],dtype=torch.float32),
-                return_relevance:bool=False):
+                sort_nodes_by:int=0,
+                signal=torch.tensor([0,1],dtype=torch.float32).to(device),
+                return_result:bool=False):
         inputs=to_explain["inputs"]
 
 
         self.model.model.eval()
         u=self.model.model.forward(**inputs)
+        truth_label=to_explain["y"]
+        pred=nn.Softmax(dim=1)(u)
+
 
         start_index=self.model.n_layers
         to_explain['R'][start_index]=copy_tensor(u*signal)
@@ -132,10 +140,16 @@ class LRP:
 
         R_node=to_explain["R"][0]
         R_edge=to_explain["R"]['r_src']+to_explain["R"]['r_dest']+(to_explain["R"]['r_x_row'])
+
+        if sort_nodes_by>=0:
+            sort_idx=torch.argsort(inputs["x"][:,sort_nodes_by])
+            R_node=R_node[sort_idx]
+
+        result=dict(node=R_node,edge=R_edge,label=truth_label,pred=pred)
         if save:
-            torch.save(dict(node=R_node,edge=R_edge),save_to)
+            torch.save(result,save_to)
         
-        if return_relevance:
-            return R_node
+        if return_result:
+            return result
 
 
