@@ -9,20 +9,27 @@ While Graph Interaction Networks achieve exceptional results in Higgs particle i
 ## Description of contents
 
 
-* `config`: 
-
 * `notebooks`:
-    * `EDA.ipynb`: notebook that contains the eploratory data analysis of this project
-* `references`: contains links to the paper and libraries referenced in this paper
+    * `relevance_heatmap.ipynb`: notebook that contains example plots of this project
 * `src`:
+    * `model`
+        * `GraphDataset.py`
+        * `InteractionNetwork.py`
+    * `sanity_check`
+        * `make_data.py`
+    * `util`: utility functions such as I/O or plotting
+        * `copy.py`
+        * `data_io.py`
+        * `model_io.py`
+        * `plot.py`
+    * `LRP.py`: core component of this project
 
 * `run.py`: Entry point for running different targets of this project
-* `runTest.py`: Not intended for direct use, contains script for running the project on Dev data
 * `test`: directory for storing Dev data
-    * `testdata`
-        * `train`: contains Dev data for training
-        * `test`: contains Dev data for testing
-
+    * `test.root`: the generated root file for testing purpose
+* `data`
+    * `model`: contains a trained IN state dictionary to start with
+    * `definitions.yml`: contains metadata definition of the data used in this project
 <hr>
 
 ## Build Environment
@@ -33,12 +40,30 @@ While Graph Interaction Networks achieve exceptional results in Higgs particle i
 
 ## Usage
 To use `run.py`, a list of supported arguments are provided below
+
+For sanity check of the explanation,
+```
+python run.py sc <arguments>
+```
 |arguments|purpose|
 |-|-|
-|`test`| build all targets of this project on Dev data|
-|`all`|similar to `test`, but builds with actual data * not recommended as this may take a very long time to finish running|
+|`all`|build all targets, equivalent to using [`data` `train` `plot`] as argument|
+|`data`| generate dummy data for sanity check|
+|`train`| train a dummy IN on the sythesized data|
+|`plot`|create static heatmap plots of precomptued relevance scores|
+
+
+
+For explaining a pre-trained Higgs boson Interaction Network,
 ```
 python run.py <arguments>
 ```
+|arguments|purpose|
+|-|-|
+|`test`| build all targets, equivalent to using [`data` `train` `plot`] as argument on Dev data|
+|`all`| similar to `test`, but build on actual data|
+|`explain`| generate relevance score for given data|
+|`plot`| create static heatmap plots of precomptued relevance scores|
+
 <br>
 

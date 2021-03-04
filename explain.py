@@ -30,13 +30,13 @@ if __name__=="__main__":
     ntracks = definitions['ntracks']
 
 
-    file_names=["/teams/DSC180A_FA20_A00/b06particlephysics/train/ntuple_merged_10.root"]
+    file_names=["/teams/DSC180A_FA20_A00/b06particlephysics/train/ntuple_merged_0.root"]
     graph_dataset = GraphDataset('./data', features, labels, spectators, n_events=10000, n_events_merge=1000, 
                                 file_names=file_names)
     
-    batch=graph_dataset[0]
-    batch_size=1
-    batch_loader=DataLoader(batch,batch_size = batch_size)
+    # batch=graph_dataset[0]
+    # batch_size=1
+    # batch_loader=DataLoader(batch,batch_size = batch_size)
     # g=b[1]
     # g.batch=torch.zeros(g.x.shape[0],dtype=torch.int64)
 
@@ -44,22 +44,28 @@ if __name__=="__main__":
     state_dict=torch.load("./data/model/IN_best_dec10.pth",map_location=device)
     model=model_io(model,state_dict,dict())
 
-    t=tqdm(enumerate(batch_loader),total=len(batch)//batch_size)
-    explainer=LRP(model)
-    results=[]
-    # cnt=100
-    for i,data in t:
-        data=data.to(device)
-        to_explain={"A":dict(),"inputs":dict(x=data.x,
-                                             edge_index=data.edge_index,
-                                             batch=data.batch),"y":data.y,"R":dict()}
-        
-        model.set_dest(to_explain["A"])
-        
-        results.append(explainer.explain(to_explain,save=False,return_result=True))
-        
-    save_to="./data/file_0_relevance.pt"
-    torch.save(results,save_to)
+    t_batch=enumerate(graph_dataset)
+    for j,batch in t_batch:
+        batch_size=1
+        batch_loader=DataLoader(batch,batch_size = batch_size)
+
+        t=tqdm(enumerate(batch_loader),total=len(batch)//batch_size)
+        explainer=LRP(model)
+        results=[]
+
+        for i,data in t:
+            data=data.to(device)
+            to_explain={"A":dict(),"inputs":dict(x=data.x,
+                                                edge_index=data.edge_index,
+                                                batch=data.batch),"y":data.y,"R":dict()}
+            
+            model.set_dest(to_explain["A"])
+            
+            results.append(explainer.explain(to_explain,save=False,return_result=True,
+            signal=torch.tensor([0,1],dtype=torch.float32).to(device)))
+            
+        save_to="./data/file_{}_relevance.pt".format(j)
+        torch.save(results,save_to)
 
         # if cnt==0:
         #     break
