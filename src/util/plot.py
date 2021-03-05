@@ -75,17 +75,19 @@ def plot_interactive(R,ix,raw_input,features,save_to="jet_0.html"):
     mapper = LinearColorMapper(palette=colors, low=-scale, high=scale)
 
     if R[ix]['label'][:,1]>0:
-        title_str="Higg boson jet node relevance, "
+        title_str="Node Relevance Heatmap for Higgs boson Signal"
     else:
-        title_str="QCD jet node relevance, "
+        title_str="Node Relevance Heatmap for background"
 
-    title_str+="prediction:{}".format(R[ix]["pred"].detach().cpu().numpy().round(4)[0])
+    subtitle_str="prediction:{}".format(R[ix]["pred"].detach().cpu().numpy().round(4)[0])
 
 
     p = figure(x_range=[str(i) for i in data.index],
                y_range=list(reversed(data.columns)),
-               title=title_str,
-               tools=["hover"])
+               tools=["hover","save"])
+    
+    p.add_layout(Title(text=subtitle_str, text_font_style="italic"), 'above')
+    p.add_layout(Title(text=title_str, text_font_size="12pt"), 'above')
 
     p.rect(x="particle", y="feature", width=1, height=1, source=source,
            line_color='white', fill_color=transform('relevance', mapper))
@@ -177,9 +179,9 @@ def plot_edge3d(R,ix,raw_input,features,x,y,z):
     G = to_networkx(raw_input, node_attrs=["pos","node_shade"])
 
     if R[ix]['label'][:,1]>0:
-        title_str="Higg boson jet edge relevance, "
+        title_str="Edge and Node Relevance in 3d Space for Higgs boson Signal\n\n"
     else:
-        title_str="QCD jet edge relevance, "
+        title_str="Edge and Node Relevance in 3d Space for background\n\n"
     title_str+="prediction:{}".format(R[ix]["pred"].detach().cpu().numpy().round(4)[0])
     
     network_plot_3D(G,45,raw_input.y.detach(),edge_alpha,title_str,zlabel=z)
