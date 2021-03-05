@@ -139,7 +139,8 @@ class LRP:
             self.explain_single_layer(to_explain,index)
 
         R_node=to_explain["R"][0]
-        R_edge=to_explain["R"]['r_src']+to_explain["R"]['r_dest']+(to_explain["R"]['r_x_row'])
+        R_edge=torch.cat([(to_explain["R"]['r_src']+(to_explain["R"]['r_x_row'])),
+                            to_explain["R"]['r_dest']],1)
 
         if sort_nodes_by>=0:
             sort_idx=torch.argsort(inputs["x"][:,sort_nodes_by])

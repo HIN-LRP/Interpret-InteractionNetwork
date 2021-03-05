@@ -2,7 +2,11 @@ import pandas as pd
 import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+import matplotlib.colors as colors
+import matplotlib.ticker as ticker,(AutoMinorLocator, MultipleLocator)
+from mpl_toolkits.mplot3d.axes3d import Axes3D
+import networkx as nx
+from torch_geometric.utils import to_networkx
 from bokeh.io import save
 from bokeh.models import (BasicTicker, ColorBar, ColumnDataSource,
                           LinearColorMapper, PrintfTickFormatter,)
@@ -101,6 +105,88 @@ def plot_interactive(R,ix,raw_input,features,save_to="jet_0.html"):
     p.add_layout(color_bar,'right')
     save(p,save_to)
 
+def network_plot_3D(G, angle,label, edge_alpha,zlabel="track_pt",threshold=0.5,save_to="jet_0_edge3d.png"):
+    pos = nx.get_node_attributes(G, 'pos')
+    node_shade=nx.get_node_attributes(G,"node_shade")
+
+    # 3D network plot
+    with plt.style.context(('ggplot')):
+        
+        fig = plt.figure(figsize=(10,7))
+        ax = Axes3D(fig)
+        
+        # Loop on the pos dictionary to extract the x,y,z coordinates of each node
+        for key, value in pos.items():
+            xi = value[0]
+            yi = value[1]
+            zi = value[2]
+            
+            # Scatter plot
+            ax.scatter(xi, yi, zi, c='k',s=25*node_shade[key], edgecolors='orange', alpha=0.5)
+        
+
+        for i,j in enumerate(G.edges()):
+
+            x = np.array((pos[j[0]][0], pos[j[1]][0]))
+            y = np.array((pos[j[0]][1], pos[j[1]][1]))
+            z = np.array((pos[j[0]][2], pos[j[1]][2]))
+
+            alpha=edge_alpha[i]
+            if alpha<threshold:
+                ax.plot(x, y, z, c='#546163', alpha=0.03)
+            else:
+                ax.plot(x, y, z, c='r', alpha=alpha,linewidth=2)
+    
+    # Set the initial view
+    ax.view_init(30, angle)
+
+    plt.xlabel("track_etarel")
+    plt.ylabel("track_phirel")
+    ax.set_zlabel(zlabel)
+
+    
+    plt.title(title_str)
+
+    plt.savefig(save_to)
+
+
+def plot_edge3d(R,ix,raw_input,features,x,y,z):
+    r_node=R['node'].clone()
+    r_edge=R['edge'].clone()
+    r_node[torch.isnan(r_node)]=0
+    r_edge[torch.isnan(r_edge)]=0
+
+    edge_shade=torch.norm(r_edge,dim=1)
+    edge_alpha=(edge_shade-edge_shade.min())/edge_shade.max()
+    edge_alpha=edge_alpha.detach().cpu().numpy()
+
+    node_shade=np.linalg.norm(r_node.detach().cpu().numpy(),axis=1)
+    
+    x_idx=features.index(x)
+    y_idx=features.index(y)
+    z_idx=features.index(z)
+    
+    raw_input.edge_alpha=edge_alpha
+    raw_input.node_shade=node_shade
+
+    pos=np.array(list(zip(raw_input.x[:,x_idx].detach().numpy(),
+                          raw_input.x[:,y_idx].detach().numpy(),
+                          raw_input.x[:,z_idx].detach().numpy())))
+    raw_input.pos=pos
+    
+    G = to_networkx(raw_input, node_attrs=["pos","node_shade"])
+
+    if R[ix]['label'][:,1]>0:
+        title_str="Higg boson jet edge relevance, "
+    else:
+        title_str="QCD jet edge relevance, "
+    title_str+="prediction:{}".format(R[ix]["pred"].detach().cpu().numpy().round(4)[0])
+    
+    network_plot_3D(G,45,raw_input.y.detach(),edge_alpha,title_str,zlabel=z)
+
+
 def plot(R,ix,raw_input,features,save_to=f"jet_0"):
     plot_static(R,ix,features,save_to+".png")
     plot_interactive(R,ix,raw_input,features,save_to+".html")
+    plot_edge3d(R,ix,raw_input,features,save_to+"_edge3d.png")
+
