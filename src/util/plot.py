@@ -3,13 +3,12 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import matplotlib.ticker as ticker,(AutoMinorLocator, MultipleLocator)
+import matplotlib.ticker as ticker
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 import networkx as nx
 from torch_geometric.utils import to_networkx
 from bokeh.io import save
-from bokeh.models import (BasicTicker, ColorBar, ColumnDataSource,
-                          LinearColorMapper, PrintfTickFormatter,)
+from bokeh.models import BasicTicker, ColorBar, ColumnDataSource,LinearColorMapper, PrintfTickFormatter
 from bokeh.plotting import figure
 from bokeh.transform import transform
 

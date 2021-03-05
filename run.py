@@ -33,6 +33,8 @@ if __name__=="__main__":
 
     if "test" in targets:                     # run targets on dev data
         file_names=["./test/test.root"]
+        if len(targets)==1:
+            targets.append("all")
     else:                                     # run targets on actual data
         file_names=["/teams/DSC180A_FA20_A00/b06particlephysics/train/ntuple_merged_0.root"]
     
@@ -45,7 +47,11 @@ if __name__=="__main__":
         if "all" in targets:
             targets+=["explain","plot"]
 
-        graph_dataset = GraphDataset('./data', features, labels, spectators, n_events=10000, n_events_merge=1000, 
+        if "test" in targets:
+            root="./test"
+        else:
+            root="./data"
+        graph_dataset = GraphDataset(root, features, labels, spectators, n_events=10000, n_events_merge=1000, 
                                     file_names=file_names)
         
         batch=graph_dataset[0]
@@ -62,10 +68,16 @@ if __name__=="__main__":
 
             if "QCD" in targets:   # relevance w.r.t. QCD
                 signal=torch.tensor([1,0],dtype=torch.float32).to(device)
-                save_to="./data/file_0_relevance_QCD.pt"
+                if "test" in targets:
+                    save_to="./data/test_relevance_QCD.pt"
+                else:
+                    save_to="./data/file_0_relevance_QCD.pt"
             else:                  # default: relevance w.r.t. Hbb
                 signal=torch.tensor([0,1],dtype=torch.float32).to(device)
-                save_to="./data/file_0_relevance.pt"
+                if "test" in targets:
+                    save_to="./data/test_relevance.pt"
+                else:
+                    save_to="./data/file_0_relevance.pt"
 
             for i,data in t:
                 data=data.to(device)
@@ -81,14 +93,23 @@ if __name__=="__main__":
             torch.save(results,save_to)
         
         if "plot" in targets:       # plot precomputed relevance scores
-            if osp.isfile("./data/file_0_relevance.pt"):
-                R=torch.load("./data/file_0_relevance.pt")
-                plot_static(R,0,features,"./file_0_jet_0.png")
+            if "test" in targets:
+                path="./data/test_relevance.pt"
+                plot_path="./test_relevance.png"
+            else:
+                path="./data/file_0_relevance.pt"
+                plot_path="./file_0_jet_0.png"
+
+            if osp.isfile(path):
+                R=torch.load(path)
+                plot_static(R,0,features,plot_path)
             else:
                 print("relevance score not computed yet, need to run `explain` first")
 
 
     else: # run targets related to sanity check of the explanation method
+        if len(targets)==1:
+            targets.append("all")
         if "all" in targets:
             targets+=["data","train","explain","plot"]
         if "data" in targets:        # generate new data for sanity check purpose
