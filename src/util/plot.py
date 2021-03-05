@@ -105,7 +105,7 @@ def plot_interactive(R,ix,raw_input,features,save_to="jet_0.html"):
     p.add_layout(color_bar,'right')
     save(p,save_to)
 
-def network_plot_3D(G, angle,label, edge_alpha,zlabel="track_pt",threshold=0.5,save_to="jet_0_edge3d.png"):
+def network_plot_3D(G, angle,label, edge_alpha,title_str,zlabel="track_pt",threshold=0.5,save_to="jet_0_edge3d.png"):
     pos = nx.get_node_attributes(G, 'pos')
     node_shade=nx.get_node_attributes(G,"node_shade")
 
