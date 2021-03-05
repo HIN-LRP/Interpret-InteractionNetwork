@@ -36,7 +36,7 @@ if __name__=="__main__":
         if len(targets)==1:
             targets.append("all")
     else:                                     # run targets on actual data
-        file_names=["/teams/DSC180A_FA20_A00/b06particlephysics/train/ntuple_merged_0.root"]
+        file_names=["/teams/DSC180A_FA20_A00/b06particlephysics/test/ntuple_merged_0.root"]
     
     # start a model
     model=InteractionNetwork().to(device)
