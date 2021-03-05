@@ -1,5 +1,4 @@
-from .GraphDataset import *
-from .IN_LRP import *
-from .InteractionNetwork import *
-from .plot import *
-from .util import *
+from .LRP import LRP
+# from .util import *
+# from .model import *
+# from .explain import *

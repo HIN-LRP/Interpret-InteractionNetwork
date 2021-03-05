@@ -1,85 +1,140 @@
-from src import *
-import yaml
+import torch
 import sys
-from os import system
+import os.path as osp
+import numpy as np
+import yaml
+from tqdm import tqdm
+from torch_geometric.data import DataLoader
+from src.LRP import LRP
+from src.util import model_io,load_from,write_to,plot_static
+from src.model import GraphDataset,InteractionNetwork,main
+from src.sanity_check import make_data
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 if __name__=="__main__":
     # get the targets
     targets=sys.argv[1:]
-
-    # get feature names for plotting
-    with open("data/definitions.yml") as file:
+   
+    # load feature definitions
+    with open('./data/definitions.yml') as file:
         definitions = yaml.load(file, Loader=yaml.FullLoader)
-        
-    features = definitions['features']
-
-    if "test" in targets:
-        dataset=load_data("data/definitions.yml",fn=["./test/data/test.root"])
-    else:
-        dataset=load_data("data/definitions.yml")
-
-    b=dataset[0]
-    graph=b[0]
-
-    if len(targets)>0 and not (("all" in targets) or ("test" in targets)):
-        # prepare dataset
-        graph.batch=torch.tensor(np.zeros(graph.x.shape[0]).astype("int64"))
-
-        # create masking matrices for normalization by src/dest nodes of the edges
-        n_tracks=graph.x.shape[0]
-        row,col=graph.edge_index
-        M_row,M_col=make_mask(row,n_tracks),make_mask(col,n_tracks)
-
-        # load model
-        model=load_model("data/model/IN_best_dec10.pth")
-
-        # create layer slices
-        layers=get_layers(model)
-
-        # obtain activation of each layer and compute relevance scores
-        activations=get_activations(layers,graph)
-        R=get_relevances(layers,activations,graph)
-
-        # merge the relevance scores from multiple paths
-        r=(((M_row@R["R0"][:,:len(features)]))+(M_row@R["R2_src"])+R["R4_x"])
-    elif "test" in targets:
-        pipeline(graph,features,
-            "data/model/IN_best_dec10.pth",
-            "IN_best_dec10_node_feat_relevance_test.png",
-            "IN_best_dec10_edge_rel_3d_test.png"
-            )
-    else:
-        pipeline(graph,features,
-            "data/model/IN_best_dec10.pth",
-            "IN_best_dec10_node_feat_relevance_j0.png",
-            "IN_best_dec10_edge_rel_3d_j0.png"
-            )
-
-    if "node_feat_rel" in targets:
-        # make feature relevance heatmap at each node
-        plot_node_feat_heatmap(r,features,"IN_best_dec10_node_feat_relevance_j0.png")
-
-    if "edge_rel_3d" in targets:
-        # process relevance scores for making 3D jet plot
-        node_size=torch.norm(M_row@R["R0"][:,:48],dim=1)
-        edge_alpha=torch.norm(R["R0"],dim=1)
-        alpha=(edge_alpha-edge_alpha.min())/edge_alpha.max() # normalize so edge alpha varies between 0-1
-        alpha=alpha.detach().numpy()
-        
-        # add the computed attributes to the networkx graph
-        graph.edge_alpha=edge_alpha
-        graph.node_size=node_size
-
-        eta_idx=features.index("track_etarel")
-        phi_idx=features.index("track_phirel")
-        pt_idx =features.index("track_pt")
-        pos=np.array(list(zip(graph.x[:,eta_idx].detach().numpy(),
-                            graph.x[:,phi_idx].detach().numpy(),
-                            graph.x[:,pt_idx].detach().numpy())))
-        graph.pos=pos
-        G = to_networkx(graph, edge_attrs=['edge_alpha'],node_attrs=["pos","node_size"])
-
-        # plot edge relevance 3D
-        plot_network_3D(G,45,graph.y.detach(),fn=nw_rel_fn,save=True)
-
     
+    features = definitions['features']
+    spectators = definitions['spectators']
+    labels = definitions['labels']
+
+    nfeatures = definitions['nfeatures']
+    nspectators = definitions['nspectators']
+    nlabels = definitions['nlabels']
+    ntracks = definitions['ntracks']
+
+
+    if "test" in targets:                     # run targets on dev data
+        file_names=["./test/test.root"]
+    else:                                     # run targets on actual data
+        file_names=["/teams/DSC180A_FA20_A00/b06particlephysics/train/ntuple_merged_0.root"]
+    
+    # start a model
+    model=InteractionNetwork().to(device)
+    
+
+    # run targets related to actual usage of the project with trained model
+    if not (("sanity-check" in targets) or ("sc" in targets)):  
+        if "all" in targets:
+            targets+=["explain","plot"]
+
+        graph_dataset = GraphDataset('./data', features, labels, spectators, n_events=10000, n_events_merge=1000, 
+                                    file_names=file_names)
+        
+        batch=graph_dataset[0]
+        batch_size=1
+        batch_loader=DataLoader(batch,batch_size = batch_size)
+
+        if "explain" in targets:    
+            state_dict=torch.load("./data/model/IN.pth",map_location=device)
+            model=model_io(model,state_dict,dict())
+
+            t=tqdm(enumerate(batch_loader),total=len(batch)//batch_size)
+            explainer=LRP(model)
+            results=[]
+
+            if "QCD" in targets:   # relevance w.r.t. QCD
+                signal=torch.tensor([1,0],dtype=torch.float32).to(device)
+                save_to="./data/file_0_relevance_QCD.pt"
+            else:                  # default: relevance w.r.t. Hbb
+                signal=torch.tensor([0,1],dtype=torch.float32).to(device)
+                save_to="./data/file_0_relevance.pt"
+
+            for i,data in t:
+                data=data.to(device)
+                to_explain={"A":dict(),"inputs":dict(x=data.x,
+                                                    edge_index=data.edge_index,
+                                                    batch=data.batch),"y":data.y,"R":dict()}
+                
+                model.set_dest(to_explain["A"])
+                
+                results.append(explainer.explain(to_explain,save=False,return_result=True,
+                signal=signal))
+                
+            torch.save(results,save_to)
+        
+        if "plot" in targets:       # plot precomputed relevance scores
+            if osp.isfile("./data/file_0_relevance.pt"):
+                R=torch.load("./data/file_0_relevance.pt")
+                plot_static(R,0,features,"./file_0_jet_0.png")
+            else:
+                print("relevance score not computed yet, need to run `explain` first")
+
+
+    else: # run targets related to sanity check of the explanation method
+        if "all" in targets:
+            targets+=["data","train","explain","plot"]
+        if "data" in targets:        # generate new data for sanity check purpose
+            # declare variables
+            nfeatures=48
+            ntracks=10
+            nsamples=2000+500
+            x_idx=0
+            y_idx=3
+            save_to="./data/{}_sythesized.pt"
+            make_data(nfeatures,ntracks,nsamples,x_idx,y_idx,save_to)
+
+        if "train" in targets:       # train on generated train data
+            train_data=torch.load("./data/{}_sythesized.pt".format("train"))
+            test_data=torch.load("./data/{}_sythesized.pt".format("test"))
+
+            main(train_data,test_data,"./data/model/IN_sythesized.pth","./data/IN_sythesized_roc.png")
+
+        if "explain" in targets:     # explain the prediction on generated test data
+            state_dict=torch.load("./data/model/IN_sythesized.pth",map_location=device)
+            model=model_io(model,state_dict,dict())
+            explainer=LRP(model)
+            
+            batch=torch.load("./data/test_sythesized.pt")
+            g=batch[1]
+            g.batch=torch.tensor(np.zeros(g.x.shape[0]).astype("int64"))
+            
+            results=[]
+            signal=torch.tensor([0,1],dtype=torch.float32).to(device)
+            save_to="./data/test_sythesized_relevance.pt"
+
+            data=g.to(device)
+            to_explain={"A":dict(),"inputs":dict(x=data.x,
+                                                edge_index=data.edge_index,
+                                                batch=data.batch),"y":data.y,"R":dict()}
+                
+            model.set_dest(to_explain["A"])
+                
+            results.append(explainer.explain(to_explain,save=False,return_result=True,
+                                            signal=signal))
+
+            torch.save(results,save_to)
+
+        if "plot" in targets:        # plot the precomptued relevance score of generated test data
+            if osp.isfile("./data/test_sythesized_relevance.pt"):
+                R=torch.load("./data/test_sythesized_relevance.pt")
+                plot_static(R,0,features,"./test_sythesized_jet_0.png")
+            else:
+                print("relevance score not computed yet, need to run `explain` first")
