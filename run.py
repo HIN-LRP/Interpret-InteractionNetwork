@@ -29,7 +29,9 @@ if __name__=="__main__":
     nspectators = definitions['nspectators']
     nlabels = definitions['nlabels']
     ntracks = definitions['ntracks']
-
+    
+    if len(targets)==0:
+        targets.append("all")
 
     if "test" in targets:                     # run targets on dev data
         file_names=["./test/test.root"]
@@ -46,7 +48,6 @@ if __name__=="__main__":
     if not (("sanity-check" in targets) or ("sc" in targets)):  
         if "all" in targets:
             targets+=["explain","plot"]
-
         if "test" in targets:
             root="./test"
         else:
